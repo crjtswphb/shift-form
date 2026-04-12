@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>シフト希望提出</title>
+  <script src="https://static.worksmobile.net/static/wm-woff/sdk/woff-1.0.2.js"></script>
+  <style>
+    body { font-family: sans-serif; background-color: #f4f5f7; padding: 15px; margin: 0; }
+    .box { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
+    h2 { font-size: 18px; color: #00B900; margin-bottom: 20px; border-bottom: 2px solid #00B900; padding-bottom: 5px; }
+    input[type="text"], input[type="date"], select { padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; box-sizing: border-box; width: 100%; margin-top: 5px; }
+    .shift-row { background: #fffde7; padding: 15px; border-radius: 8px; margin-top: 10px; border: 1px solid #ffd54f; position: relative; }
+    .remove-btn { position: absolute; top: 8px; right: 8px; background: #ff5252; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 14px; cursor: pointer; }
+    #addBtn { width: 100%; padding: 10px; margin-top: 10px; background: white; border: 2px dashed #00B900; color: #00B900; border-radius: 6px; font-size: 15px; cursor: pointer; }
+    #submitBtn { width: 100%; padding: 15px; margin-top: 25px; background-color: #00B900; color: white; border: none; border-radius: 6px; font-size: 18px; font-weight: bold; cursor: pointer; }
+    #submitBtn:disabled { background-color: #ccc; cursor: not-allowed; }
+    #debugInfo { font-size: 11px; color: gray; margin-bottom: 10px; }
+    #msg { text-align: center; margin-top: 15px; font-weight: bold; color: #00B900; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>🍴 シフト希望提出</h2>
+    <div id="debugInfo">認証待機中...</div>
+    <label>👤 スタッフ名</label>
+    <input type="text" id="staffName" placeholder="読み込み中..." readonly>
+    <div id="shiftContainer"></div>
+    <button type="button" id="addBtn" onclick="addShiftRow()">＋ 出勤日を追加</button>
+    <button type="button" id="submitBtn" onclick="submitData()" disabled>店長に送信する</button>
+    <div id="msg"></div>
+  </div>
+
+<script>
+  // ★ここを自分のGASのURLに書き換える
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbwbl8Jv39RGw6wnX8WJ2lkiTkoQlO31CRZeszEQu-z92FIBz5rpihFqsytqt5Xe5ky0/exec";
+
+  let targetUserId = "";
+
+  function addShiftRow() {
+    const container = document.getElementById('shiftContainer');
+    const row = document.createElement('div');
+    row.className = 'shift-row';
+    row.innerHTML = `
+      <button type="button" class="remove-btn" onclick="this.parentElement.remove()">×</button>
+      <label>📅 日付</label>
+      <input type="date" class="s-date" required>
+      <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+        <select class="s-time" style="flex:1;">
+          <option>10:00</option><option>11:00</option><option>12:00</option>
+          <option>13:00</option><option>14:00</option><option>15:00</option>
+          <option>16:00</option><option selected>17:00</option><option>18:00</option>
+          <option>19:00</option><option>20:00</option>
+        </select>
+        <span>〜</span>
+        <select class="e-time" style="flex:1;">
+          <option>18:00</option><option>19:00</option><option>20:00</option>
+          <option>21:00</option><option>22:00</option><option>23:00</option>
+          <option selected>24:00</option>
+        </select>
+      </div>
+    `;
+    container.appendChild(row);
+  }
+
+  window.onload = function() {
+    addShiftRow();
+
+    woff.init({ woffId: "rPcS4Py33CXjMRMrJYChZg" })
+      .then(() => {
+        document.getElementById('debugInfo').innerText = "初期化成功。ログイン確認中...";
+        if (!woff.isLoggedIn()) {
+          document.getElementById('debugInfo').innerText = "ログイン処理中...";
+          woff.login();
+          return Promise.reject("ログインリダイレクト中");
+        }
+        return woff.getProfile();
+      })
+      .then(p => {
+        if (p) {
+          document.getElementById('staffName').value = p.displayName;
+          document.getElementById('staffName').removeAttribute('readonly');
+          targetUserId = p.userId;
+          document.getElementById('debugInfo').innerText = "認証完了: " + p.displayName;
+          document.getElementById('submitBtn').disabled = false;
+        }
+      })
+      .catch(err => {
+        if (err === "ログインリダイレクト中") return;
+        console.error(err);
+        document.getElementById('debugInfo').innerText = "手動モード: " + JSON.stringify(err);
+        document.getElementById('staffName').placeholder = "名前を手入力してください";
+        document.getElementById('staffName').removeAttribute('readonly');
+        document.getElementById('submitBtn').disabled = false;
+      });
+  };
+
+  function submitData() {
+    const name = document.getElementById('staffName').value.trim();
+    if (!name) { alert("スタッフ名を入力してください"); return; }
+
+    const rows = document.querySelectorAll('.shift-row');
+    if (rows.length === 0) { alert("出勤日を1日以上追加してください"); return; }
+
+    const shifts = Array.from(rows).map(row => ({
+      date: row.querySelector('.s-date').value,
+      start: row.querySelector('.s-time').value,
+      end: row.querySelector('.e-time').value
+    }));
+
+    if (shifts.some(s => !s.date)) { alert("日付が入力されていない行があります"); return; }
+
+    document.getElementById('submitBtn').disabled = true;
+    document.getElementById('submitBtn').innerText = "送信中...";
+
+    fetch(GAS_URL, {
+      method: "POST",
+      body: JSON.stringify({ staffName: name, shifts: shifts, targetUserId: targetUserId }),
+      headers: { "Content-Type": "text/plain" }
+    })
+    .then(r => r.text())
+    .then(result => {
+      document.getElementById('msg').innerText = result;
+      document.getElementById('submitBtn').innerText = "送信完了";
+      setTimeout(() => { try { woff.closeWindow(); } catch(e) {} }, 2000);
+    })
+    .catch(e => {
+      alert("送信エラー: " + e.message);
+      document.getElementById('submitBtn').disabled = false;
+      document.getElementById('submitBtn').innerText = "店長に送信する";
+    });
+  }
+</script>
+</body>
+</html>
