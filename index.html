@@ -22,7 +22,7 @@
 <body>
   <div class="box">
     <h2>🍴 シフト希望提出</h2>
-    <div id="debugInfo">認証待機中...</div>
+    <div id="debugInfo">SDK待機中...</div>
     <label>👤 スタッフ名</label>
     <input type="text" id="staffName" placeholder="読み込み中..." readonly>
     <div id="shiftContainer"></div>
@@ -32,7 +32,6 @@
   </div>
 
 <script>
-  // ★ここを自分のGASのURLに書き換える
   const GAS_URL = "https://script.google.com/macros/s/AKfycbwbl8Jv39RGw6wnX8WJ2lkiTkoQlO31CRZeszEQu-z92FIBz5rpihFqsytqt5Xe5ky0/exec";
 
   let targetUserId = "";
@@ -66,33 +65,49 @@
   window.onload = function() {
     addShiftRow();
 
-    woff.init({ woffId: "rPcS4Py33CXjMRMrJYChZg" })
-      .then(() => {
-        document.getElementById('debugInfo').innerText = "初期化成功。ログイン確認中...";
-        if (!woff.isLoggedIn()) {
-          document.getElementById('debugInfo').innerText = "ログイン処理中...";
-          woff.login();
-          return Promise.reject("ログインリダイレクト中");
-        }
-        return woff.getProfile();
-      })
-      .then(p => {
-        if (p) {
-          document.getElementById('staffName').value = p.displayName;
+    function tryInit(retry) {
+      if (typeof woff === 'undefined') {
+        if (retry > 10) {
+          document.getElementById('debugInfo').innerText = "SDKが見つかりません";
+          document.getElementById('staffName').placeholder = "名前を手入力してください";
           document.getElementById('staffName').removeAttribute('readonly');
-          targetUserId = p.userId;
-          document.getElementById('debugInfo').innerText = "認証完了: " + p.displayName;
           document.getElementById('submitBtn').disabled = false;
+          return;
         }
-      })
-      .catch(err => {
-        if (err === "ログインリダイレクト中") return;
-        console.error(err);
-        document.getElementById('debugInfo').innerText = "手動モード: " + JSON.stringify(err);
-        document.getElementById('staffName').placeholder = "名前を手入力してください";
-        document.getElementById('staffName').removeAttribute('readonly');
-        document.getElementById('submitBtn').disabled = false;
-      });
+        document.getElementById('debugInfo').innerText = "SDK待機中... " + retry;
+        setTimeout(() => tryInit(retry + 1), 500);
+        return;
+      }
+
+      woff.init({ woffId: "rPcS4Py33CXjMRMrJYChZg" })
+        .then(() => {
+          document.getElementById('debugInfo').innerText = "初期化成功。ログイン確認中...";
+          if (!woff.isLoggedIn()) {
+            document.getElementById('debugInfo').innerText = "ログイン処理中...";
+            woff.login();
+            return Promise.reject("ログインリダイレクト中");
+          }
+          return woff.getProfile();
+        })
+        .then(p => {
+          if (p) {
+            document.getElementById('staffName').value = p.displayName;
+            document.getElementById('staffName').removeAttribute('readonly');
+            targetUserId = p.userId;
+            document.getElementById('debugInfo').innerText = "認証完了: " + p.displayName;
+            document.getElementById('submitBtn').disabled = false;
+          }
+        })
+        .catch(err => {
+          if (err === "ログインリダイレクト中") return;
+          document.getElementById('debugInfo').innerText = "手動モード: " + JSON.stringify(err);
+          document.getElementById('staffName').placeholder = "名前を手入力してください";
+          document.getElementById('staffName').removeAttribute('readonly');
+          document.getElementById('submitBtn').disabled = false;
+        });
+    }
+
+    tryInit(0);
   };
 
   function submitData() {
