@@ -61,4 +61,95 @@
           document.getElementById('debugInfo').innerText = "手動モード";
           document.getElementById('staffName').removeAttribute('readonly');
           document.getElementById('staffName').placeholder = "名前を入力してください";
-          document.getEl
+          document.getElementById('submitBtn').disabled = false;
+          return;
+        }
+        setTimeout(() => tryInit(retry + 1), 500);
+        return;
+      }
+      woff.init({ woffId: "rPcS4Py33CXjMRMrJYChZg" })
+        .then(() => {
+          if (!woff.isLoggedIn()) { woff.login(); return Promise.reject("login"); }
+          return woff.getProfile();
+        })
+        .then(p => {
+          if (p) {
+            staffName = p.displayName;
+            document.getElementById('staffName').value = p.displayName;
+            document.getElementById('debugInfo').innerText = "認証完了: " + p.displayName;
+            document.getElementById('submitBtn').disabled = false;
+          }
+        })
+        .catch(err => {
+          if (err === "login") return;
+          document.getElementById('debugInfo').innerText = "手動モード";
+          document.getElementById('staffName').removeAttribute('readonly');
+          document.getElementById('staffName').placeholder = "名前を入力してください";
+          document.getElementById('submitBtn').disabled = false;
+        });
+    }
+    tryInit(0);
+  };
+
+  function submitData() {
+    const name = document.getElementById('staffName').value.trim();
+    const date = document.getElementById('sDate').value;
+    const start = document.getElementById('sStart').value;
+    const end = document.getElementById('sEnd').value;
+
+    if (!name) { alert("お名前を確認してください"); return; }
+    if (!date) { alert("日付を選んでください"); return; }
+
+    document.getElementById('submitBtn').disabled = true;
+    document.getElementById('submitBtn').innerText = "送信中...";
+
+    const params = new URLSearchParams({
+      action: "submit",
+      staffName: name,
+      date: date,
+      start: start,
+      end: end
+    });
+
+    fetch(GAS_URL + "?" + params.toString(), { method: "GET" })
+      .then(r => r.text())
+      .then(result => {
+        document.getElementById('msg').innerText = result;
+        document.getElementById('submitBtn').innerText = "送信完了";
+      })
+      .catch(e => {
+        alert("送信エラー: " + e.message);
+        document.getElementById('submitBtn').disabled = false;
+        document.getElementById('submitBtn').innerText = "店長に送信する";
+      });
+  }
+
+  function loadHistory() {
+    const name = document.getElementById('staffName').value.trim();
+    if (!name) { alert("名前が取得できていません"); return; }
+
+    const listDiv = document.getElementById('historyList');
+    listDiv.innerHTML = "<p style='text-align:center;'>読み込み中...</p>";
+
+    const params = new URLSearchParams({ action: "history", staffName: name });
+
+    fetch(GAS_URL + "?" + params.toString(), { method: "GET" })
+      .then(r => r.json())
+      .then(history => {
+        if (!history || history.length === 0) {
+          listDiv.innerHTML = "<p style='text-align:center;'>履歴はありません</p>";
+          return;
+        }
+        let html = "<h3>あなたの直近履歴</h3>";
+        history.forEach(item => {
+          html += `<div class="history-item"><span>${item.date}</span><span>${item.time}</span></div>`;
+        });
+        listDiv.innerHTML = html;
+      })
+      .catch(() => {
+        listDiv.innerHTML = "<p>履歴の取得に失敗しました</p>";
+      });
+  }
+</script>
+</body>
+</html>
