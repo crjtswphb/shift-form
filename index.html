@@ -12,10 +12,12 @@
     label { font-weight: bold; display: block; margin-top: 15px; }
     input, select { padding: 12px; width: 100%; box-sizing: border-box; margin-top: 5px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; }
     input[readonly] { background-color: #f9f9f9; }
-    button { width: 100%; padding: 15px; margin-top: 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; }
-    #submitBtn { background-color: #00B900; color: white; }
+    .shift-row { background: #fffde7; padding: 15px; border-radius: 8px; margin-top: 10px; border: 1px solid #ffd54f; position: relative; }
+    .remove-btn { position: absolute; top: 8px; right: 8px; background: #ff5252; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 14px; cursor: pointer; }
+    #addBtn { width: 100%; padding: 10px; margin-top: 10px; background: white; border: 2px dashed #00B900; color: #00B900; border-radius: 6px; font-size: 15px; cursor: pointer; }
+    #submitBtn { width: 100%; padding: 15px; margin-top: 20px; background-color: #00B900; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; }
     #submitBtn:disabled { background-color: #ccc; }
-    #historyBtn { background-color: #fff; color: #00B900; border: 1px solid #00B900; margin-top: 15px; }
+    #historyBtn { width: 100%; padding: 15px; margin-top: 15px; background-color: #fff; color: #00B900; border: 1px solid #00B900; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; }
     .history-item { border-bottom: 1px solid #eee; padding: 12px 0; font-size: 14px; display: flex; justify-content: space-between; }
     #debugInfo { font-size: 11px; color: gray; margin-bottom: 10px; }
     #msg { text-align: center; margin-top: 15px; font-weight: bold; color: #00B900; }
@@ -25,26 +27,11 @@
   <div class="box">
     <h2>🍴 シフト提出</h2>
     <div id="debugInfo">認証中...</div>
-    <form id="shiftForm">
-      <label>👤 お名前</label>
-      <input type="text" id="staffName" readonly placeholder="取得中...">
-      <label>📅 希望日</label>
-      <input type="date" id="sDate">
-      <label>🕐 開始時間</label>
-      <select id="sStart">
-        <option>10:00</option><option>11:00</option><option>12:00</option>
-        <option>13:00</option><option>14:00</option><option>15:00</option>
-        <option>16:00</option><option selected>17:00</option><option>18:00</option>
-        <option>19:00</option><option>20:00</option>
-      </select>
-      <label>🕐 終了時間</label>
-      <select id="sEnd">
-        <option>18:00</option><option>19:00</option><option>20:00</option>
-        <option>21:00</option><option>22:00</option><option>23:00</option>
-        <option selected>24:00</option>
-      </select>
-      <button type="button" id="submitBtn" onclick="submitData()" disabled>店長に送信する</button>
-    </form>
+    <label>👤 お名前</label>
+    <input type="text" id="staffName" readonly placeholder="取得中...">
+    <div id="shiftContainer"></div>
+    <button type="button" id="addBtn" onclick="addShiftRow()">＋ 出勤日を追加</button>
+    <button type="button" id="submitBtn" onclick="submitData()" disabled>店長に送信する</button>
     <button type="button" id="historyBtn" onclick="loadHistory()">以前の提出を確認する</button>
     <div id="msg"></div>
     <div id="historyList"></div>
@@ -52,9 +39,36 @@
 
 <script>
   const GAS_URL = "https://script.google.com/macros/s/AKfycby6c4xLav3DwMR6baWFZ7CKm_j3TxmiNI-BqPlufzBTGPowikVYLBnn-Do4P9XXA0bv/exec";
-  let staffName = "";
+
+  function addShiftRow() {
+    const container = document.getElementById('shiftContainer');
+    const row = document.createElement('div');
+    row.className = 'shift-row';
+    row.innerHTML = `
+      <button type="button" class="remove-btn" onclick="this.parentElement.remove()">×</button>
+      <label>📅 日付</label>
+      <input type="date" class="s-date" required>
+      <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+        <select class="s-time" style="flex:1;">
+          <option>10:00</option><option>11:00</option><option>12:00</option>
+          <option>13:00</option><option>14:00</option><option>15:00</option>
+          <option>16:00</option><option selected>17:00</option><option>18:00</option>
+          <option>19:00</option><option>20:00</option>
+        </select>
+        <span>〜</span>
+        <select class="e-time" style="flex:1;">
+          <option>18:00</option><option>19:00</option><option>20:00</option>
+          <option>21:00</option><option>22:00</option><option>23:00</option>
+          <option selected>24:00</option>
+        </select>
+      </div>
+    `;
+    container.appendChild(row);
+  }
 
   window.onload = function() {
+    addShiftRow();
+
     function tryInit(retry) {
       if (typeof woff === 'undefined') {
         if (retry > 10) {
@@ -74,7 +88,6 @@
         })
         .then(p => {
           if (p) {
-            staffName = p.displayName;
             document.getElementById('staffName').value = p.displayName;
             document.getElementById('debugInfo').innerText = "認証完了: " + p.displayName;
             document.getElementById('submitBtn').disabled = false;
@@ -93,12 +106,18 @@
 
   function submitData() {
     const name = document.getElementById('staffName').value.trim();
-    const date = document.getElementById('sDate').value;
-    const start = document.getElementById('sStart').value;
-    const end = document.getElementById('sEnd').value;
-
     if (!name) { alert("お名前を確認してください"); return; }
-    if (!date) { alert("日付を選んでください"); return; }
+
+    const rows = document.querySelectorAll('.shift-row');
+    if (rows.length === 0) { alert("出勤日を1日以上追加してください"); return; }
+
+    const shifts = Array.from(rows).map(row => ({
+      date: row.querySelector('.s-date').value,
+      start: row.querySelector('.s-time').value,
+      end: row.querySelector('.e-time').value
+    }));
+
+    if (shifts.some(s => !s.date)) { alert("日付が入力されていない行があります"); return; }
 
     document.getElementById('submitBtn').disabled = true;
     document.getElementById('submitBtn').innerText = "送信中...";
@@ -106,9 +125,7 @@
     const params = new URLSearchParams({
       action: "submit",
       staffName: name,
-      date: date,
-      start: start,
-      end: end
+      shifts: JSON.stringify(shifts)
     });
 
     fetch(GAS_URL + "?" + params.toString(), { method: "GET" })
