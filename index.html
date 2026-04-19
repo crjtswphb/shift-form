@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <base target="_top">
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script src="https://static.worksmobile.net/static/wm-woff/sdk/woff-1.0.2.js"></script>
+  <title>シフト提出</title>
+  <script src="https://static.worksmobile.net/static/wm/woff/edge/3.6/sdk.js"></script>
   <style>
     body { font-family: sans-serif; background-color: #f4f5f7; padding: 15px; margin: 0; }
     .box { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
@@ -13,73 +14,139 @@
     input[readonly] { background-color: #f9f9f9; }
     button { width: 100%; padding: 15px; margin-top: 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; }
     #submitBtn { background-color: #00B900; color: white; }
-    #historyBtn { background-color: #fff; color: #00B900; border: 1px solid #00B900; margin-top: 30px; }
+    #submitBtn:disabled { background-color: #ccc; }
+    #historyBtn { background-color: #fff; color: #00B900; border: 1px solid #00B900; margin-top: 15px; }
     .history-item { border-bottom: 1px solid #eee; padding: 12px 0; font-size: 14px; display: flex; justify-content: space-between; }
+    #debugInfo { font-size: 11px; color: gray; margin-bottom: 10px; }
+    #msg { text-align: center; margin-top: 15px; font-weight: bold; color: #00B900; }
   </style>
 </head>
 <body>
   <div class="box">
     <h2>🍴 シフト提出</h2>
+    <div id="debugInfo">認証中...</div>
     <form id="shiftForm">
       <label>👤 お名前</label>
       <input type="text" id="staffName" readonly placeholder="取得中...">
       <label>📅 希望日</label>
       <input type="date" id="sDate">
-      <button type="button" id="submitBtn" onclick="submitData()">店長に送信する</button>
+      <label>🕐 開始時間</label>
+      <select id="sStart">
+        <option>10:00</option><option>11:00</option><option>12:00</option>
+        <option>13:00</option><option>14:00</option><option>15:00</option>
+        <option>16:00</option><option selected>17:00</option><option>18:00</option>
+        <option>19:00</option><option>20:00</option>
+      </select>
+      <label>🕐 終了時間</label>
+      <select id="sEnd">
+        <option>18:00</option><option>19:00</option><option>20:00</option>
+        <option>21:00</option><option>22:00</option><option>23:00</option>
+        <option selected>24:00</option>
+      </select>
+      <button type="button" id="submitBtn" onclick="submitData()" disabled>店長に送信する</button>
     </form>
     <button type="button" id="historyBtn" onclick="loadHistory()">以前の提出を確認する</button>
+    <div id="msg"></div>
     <div id="historyList"></div>
   </div>
 
 <script>
-  // 1. 名前を自動取得する（WOFF機能の復活）
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbwbl8Jv39RGw6wnX8WJ2lkiTkoQlO31CRZeszEQu-z92FIBz5rpihFqsytqt5Xe5ky0/exec";
+  let staffName = "";
+
   window.onload = function() {
-    woff.init({ woffId: "rPcS4Py33CXjMRMrJYChZg" })
-      .then(() => {
-        if (!woff.isLoggedIn()) { woff.login(); return; }
-        return woff.getProfile();
-      })
-      .then(p => {
-        if (p) { document.getElementById('staffName').value = p.displayName; }
-      })
-      .catch(err => {
-        console.error(err);
-        // WOFFが失敗した場合はURLパラメータから取得（予備）
-        const name = new URLSearchParams(window.location.search).get('name');
-        if (name) document.getElementById('staffName').value = name;
-      });
+    function tryInit(retry) {
+      if (typeof woff === 'undefined') {
+        if (retry > 10) {
+          document.getElementById('debugInfo').innerText = "手動モード";
+          document.getElementById('staffName').removeAttribute('readonly');
+          document.getElementById('staffName').placeholder = "名前を入力してください";
+          document.getElementById('submitBtn').disabled = false;
+          return;
+        }
+        setTimeout(() => tryInit(retry + 1), 500);
+        return;
+      }
+      woff.init({ woffId: "rPcS4Py33CXjMRMrJYChZg" })
+        .then(() => {
+          if (!woff.isLoggedIn()) { woff.login(); return Promise.reject("login"); }
+          return woff.getProfile();
+        })
+        .then(p => {
+          if (p) {
+            staffName = p.displayName;
+            document.getElementById('staffName').value = p.displayName;
+            document.getElementById('debugInfo').innerText = "認証完了: " + p.displayName;
+            document.getElementById('submitBtn').disabled = false;
+          }
+        })
+        .catch(err => {
+          if (err === "login") return;
+          document.getElementById('debugInfo').innerText = "手動モード";
+          document.getElementById('staffName').removeAttribute('readonly');
+          document.getElementById('staffName').placeholder = "名前を入力してください";
+          document.getElementById('submitBtn').disabled = false;
+        });
+    }
+    tryInit(0);
   };
 
   function submitData() {
-    const name = document.getElementById('staffName').value;
+    const name = document.getElementById('staffName').value.trim();
     const date = document.getElementById('sDate').value;
-    if(!date) { alert("日付を選んでください"); return; }
-    google.script.run.withSuccessHandler(msg => alert(msg)).processForm({
-      staffName: name, shifts: [{date: date, start: "17:00", end: "24:00"}]
+    const start = document.getElementById('sStart').value;
+    const end = document.getElementById('sEnd').value;
+
+    if (!name) { alert("お名前を確認してください"); return; }
+    if (!date) { alert("日付を選んでください"); return; }
+
+    document.getElementById('submitBtn').disabled = true;
+    document.getElementById('submitBtn').innerText = "送信中...";
+
+    fetch(GAS_URL, {
+      method: "POST",
+      body: JSON.stringify({ action: "submit", staffName: name, shifts: [{ date, start, end }] }),
+      headers: { "Content-Type": "text/plain" }
+    })
+    .then(r => r.text())
+    .then(result => {
+      document.getElementById('msg').innerText = result;
+      document.getElementById('submitBtn').innerText = "送信完了";
+    })
+    .catch(e => {
+      alert("送信エラー: " + e.message);
+      document.getElementById('submitBtn').disabled = false;
+      document.getElementById('submitBtn').innerText = "店長に送信する";
     });
   }
 
   function loadHistory() {
-    const name = document.getElementById('staffName').value;
+    const name = document.getElementById('staffName').value.trim();
+    if (!name) { alert("名前が取得できていません"); return; }
+
     const listDiv = document.getElementById('historyList');
     listDiv.innerHTML = "<p style='text-align:center;'>読み込み中...</p>";
 
-    google.script.run
-      .withSuccessHandler(history => {
-        if (!history || history.length === 0) {
-          listDiv.innerHTML = "<p style='text-align:center;'>履歴はありません</p>";
-          return;
-        }
-        let html = "<h3>あなたの直近履歴</h3>";
-        history.forEach(item => {
-          html += `<div class="history-item"><span>${item.date}</span> <span>${item.time}</span></div>`;
-        });
-        listDiv.innerHTML = html;
-      })
-      .withFailureHandler(err => {
-        listDiv.innerHTML = "<p>エラーが発生しました</p>";
-      })
-      .getMyShifts(name);
+    fetch(GAS_URL, {
+      method: "POST",
+      body: JSON.stringify({ action: "history", staffName: name }),
+      headers: { "Content-Type": "text/plain" }
+    })
+    .then(r => r.json())
+    .then(history => {
+      if (!history || history.length === 0) {
+        listDiv.innerHTML = "<p style='text-align:center;'>履歴はありません</p>";
+        return;
+      }
+      let html = "<h3>あなたの直近履歴</h3>";
+      history.forEach(item => {
+        html += `<div class="history-item"><span>${item.date}</span><span>${item.time}</span></div>`;
+      });
+      listDiv.innerHTML = html;
+    })
+    .catch(() => {
+      listDiv.innerHTML = "<p>履歴の取得に失敗しました</p>";
+    });
   }
 </script>
 </body>
