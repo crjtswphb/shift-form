@@ -2,68 +2,126 @@
 <html>
 <head>
   <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: sans-serif; background-color: #f4f5f7; padding: 15px; }
-    .box { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
-    h2 { color: #00B900; border-bottom: 2px solid #00B900; }
-    input, select { padding: 10px; width: 100%; box-sizing: border-box; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; }
-    button { width: 100%; padding: 12px; margin-top: 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    /* 全体のフォントと背景 */
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", sans-serif; 
+      background-color: #f4f5f7; 
+      padding: 15px; 
+      margin: 0; 
+    }
+    
+    /* 入力フォームを囲む白いボックス（前回のサイズ感に調整） */
+    .box { 
+      background: white; 
+      padding: 20px; 
+      border-radius: 12px; 
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+      max-width: 500px; /* PCで見ても広がりすぎないサイズ */
+      margin: auto; 
+    }
+    
+    h2 { color: #00B900; border-bottom: 2px solid #00B900; padding-bottom: 5px; margin-top: 0; }
+    
+    label { font-weight: bold; display: block; margin-top: 15px; font-size: 14px; }
+    
+    /* 入力欄をスマホで押しやすいサイズに */
+    input, select { 
+      padding: 12px; 
+      width: 100%; 
+      box-sizing: border-box; 
+      margin-top: 5px; 
+      border: 1px solid #ccc; 
+      border-radius: 6px; 
+      font-size: 16px; /* 16px以上にするとiPhoneでズームされなくなります */
+    }
+    
+    input[readonly] { background-color: #f9f9f9; color: #666; }
+
+    /* ボタンのデザイン */
+    button { 
+      width: 100%; 
+      padding: 15px; 
+      margin-top: 20px; 
+      border: none; 
+      border-radius: 8px; 
+      cursor: pointer; 
+      font-weight: bold; 
+      font-size: 16px; 
+    }
+    
     #submitBtn { background-color: #00B900; color: white; }
-    #historyBtn { background-color: #f0f0f0; color: #333; margin-top: 30px; }
-    .history-item { border-bottom: 1px solid #eee; padding: 10px 0; font-size: 14px; display: flex; justify-content: space-between; }
+    #historyBtn { background-color: #fff; color: #00B900; border: 1px solid #00B900; margin-top: 30px; }
+    
+    /* 履歴のリスト */
+    .history-item { 
+      border-bottom: 1px solid #eee; 
+      padding: 12px 0; 
+      font-size: 14px; 
+      display: flex; 
+      justify-content: space-between; 
+    }
+    .history-title { font-weight: bold; margin-top: 20px; color: #333; }
   </style>
 </head>
 <body>
   <div class="box">
     <h2>🍴 シフト提出</h2>
     <form id="shiftForm">
-      <label>名前</label>
-      <input type="text" id="staffName" placeholder="URLから自動入力されます" readonly>
-      <label>日付</label>
+      <label>👤 お名前</label>
+      <input type="text" id="staffName" placeholder="自動入力待ち..." readonly>
+      
+      <label>📅 希望日</label>
       <input type="date" id="sDate">
+      
       <button type="button" id="submitBtn" onclick="submitData()">店長に送信する</button>
     </form>
 
-    <button type="button" id="historyBtn" onclick="loadHistory()">提出履歴を確認する</button>
+    <button type="button" id="historyBtn" onclick="loadHistory()">以前の提出を確認する</button>
     <div id="historyList"></div>
   </div>
 
 <script>
-  // URLから名前を取得する（前回と同じ）
+  // 1. ページが開いた時に名前をセット
   window.onload = function() {
     const params = new URLSearchParams(window.location.search);
     const name = params.get('name');
     if (name) document.getElementById('staffName').value = name;
   };
 
-  // 送信処理
+  // 2. 送信ボタンを押した時の処理
   function submitData() {
+    const btn = document.getElementById('submitBtn');
     const name = document.getElementById('staffName').value;
     const date = document.getElementById('sDate').value;
-    google.script.run.withSuccessHandler(msg => alert(msg)).processForm({
-      staffName: name,
-      shifts: [{date: date, start: "17:00", end: "24:00"}]
-    });
+    
+    if(!date) { alert("日付を選んでください"); return; }
+
+    btn.disabled = true;
+    btn.innerText = "送信中...";
+
+    google.script.run
+      .withSuccessHandler(msg => {
+        alert(msg);
+        btn.disabled = false;
+        btn.innerText = "店長に送信する";
+      })
+      .processForm({
+        staffName: name,
+        shifts: [{date: date, start: "17:00", end: "24:00"}]
+      });
   }
 
-  // 【新機能】履歴を読み込む処理
+  // 3. 履歴を読み込む処理
   function loadHistory() {
     const name = document.getElementById('staffName').value;
     const listDiv = document.getElementById('historyList');
-    listDiv.innerHTML = "読み込み中...";
+    listDiv.innerHTML = "<p style='text-align:center;'>読み込み中...</p>";
 
     google.script.run.withSuccessHandler(history => {
-      if (history.length === 0) {
-        listDiv.innerHTML = "履歴がありません。";
+      if (!history || history.length === 0) {
+        listDiv.innerHTML = "<p style='text-align:center;'>履歴が見つかりませんでした</p>";
         return;
       }
-      let html = "<h3>あなたの直近の提出</h3>";
-      history.forEach(item => {
-        html += `<div class="history-item"><span>${item.date}</span> <span>${item.time}</span></div>`;
-      });
-      listDiv.innerHTML = html;
-    }).getMyShifts(name);
-  }
-</script>
-</body>
-</html>
+      let html = "<div class='history-title'>あなたの直近10件</div>";
