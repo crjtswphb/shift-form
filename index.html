@@ -17,10 +17,8 @@
     #addBtn { width: 100%; padding: 10px; margin-top: 10px; background: white; border: 2px dashed #00B900; color: #00B900; border-radius: 6px; font-size: 15px; cursor: pointer; }
     #submitBtn { width: 100%; padding: 15px; margin-top: 20px; background-color: #00B900; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; }
     #submitBtn:disabled { background-color: #ccc; }
-    #historyBtn { width: 100%; padding: 15px; margin-top: 15px; background-color: #fff; color: #00B900; border: 1px solid #00B900; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; }
-    .history-item { border-bottom: 1px solid #eee; padding: 12px 0; font-size: 14px; display: flex; justify-content: space-between; }
     #debugInfo { font-size: 11px; color: gray; margin-bottom: 10px; }
-    #msg { text-align: center; margin-top: 15px; font-weight: bold; color: #00B900; }
+    #msg { text-align: center; margin-top: 15px; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -32,11 +30,8 @@
     <div id="shiftContainer"></div>
     <button type="button" id="addBtn" onclick="addShiftRow()">＋ 出勤日を追加</button>
     <button type="button" id="submitBtn" onclick="submitData()" disabled>店長に送信する</button>
-    <button type="button" id="historyBtn" onclick="loadHistory()">以前の提出を確認する</button>
     <div id="msg"></div>
-    <div id="historyList"></div>
   </div>
-
 <script>
   const GAS_URL = "https://script.google.com/macros/s/AKfycby6c4xLav3DwMR6baWFZ7CKm_j3TxmiNI-BqPlufzBTGPowikVYLBnn-Do4P9XXA0bv/exec";
 
@@ -59,7 +54,7 @@
         <select class="e-time" style="flex:1;">
           <option>18:00</option><option>19:00</option><option>20:00</option>
           <option>21:00</option><option>22:00</option><option>23:00</option>
-          <option selected>23:59</option>
+          <option selected>24:00</option>
         </select>
       </div>
     `;
@@ -68,7 +63,6 @@
 
   window.onload = function() {
     addShiftRow();
-
     function tryInit(retry) {
       if (typeof woff === 'undefined') {
         if (retry > 10) {
@@ -131,40 +125,15 @@
     fetch(GAS_URL + "?" + params.toString(), { method: "GET" })
       .then(r => r.text())
       .then(result => {
-        document.getElementById('msg').innerText = result;
+        const msg = document.getElementById('msg');
+        msg.innerText = result;
+        msg.style.color = result.includes("✅") ? "#00B900" : "#ff5252";
         document.getElementById('submitBtn').innerText = "送信完了";
       })
       .catch(e => {
         alert("送信エラー: " + e.message);
         document.getElementById('submitBtn').disabled = false;
         document.getElementById('submitBtn').innerText = "店長に送信する";
-      });
-  }
-
-  function loadHistory() {
-    const name = document.getElementById('staffName').value.trim();
-    if (!name) { alert("名前が取得できていません"); return; }
-
-    const listDiv = document.getElementById('historyList');
-    listDiv.innerHTML = "<p style='text-align:center;'>読み込み中...</p>";
-
-    const params = new URLSearchParams({ action: "history", staffName: name });
-
-    fetch(GAS_URL + "?" + params.toString(), { method: "GET" })
-      .then(r => r.json())
-      .then(history => {
-        if (!history || history.length === 0) {
-          listDiv.innerHTML = "<p style='text-align:center;'>履歴はありません</p>";
-          return;
-        }
-        let html = "<h3>あなたの直近履歴</h3>";
-        history.forEach(item => {
-          html += `<div class="history-item"><span>${item.date}</span><span>${item.time}</span></div>`;
-        });
-        listDiv.innerHTML = html;
-      })
-      .catch(() => {
-        listDiv.innerHTML = "<p>履歴の取得に失敗しました</p>";
       });
   }
 </script>
