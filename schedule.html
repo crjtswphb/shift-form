@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>完成シフト確認</title>
+  <script src="https://static.worksmobile.net/static/wm/woff/edge/3.6/sdk.js"></script>
+  <style>
+    body { font-family: sans-serif; background-color: #f4f5f7; padding: 15px; margin: 0; }
+    .box { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
+    h2 { color: #00B900; border-bottom: 2px solid #00B900; margin-top: 0; }
+    .shift-item { border-bottom: 1px solid #eee; padding: 12px 0; font-size: 15px; display: flex; justify-content: space-between; }
+    .empty { text-align: center; color: gray; margin-top: 30px; }
+    #debugInfo { font-size: 11px; color: gray; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>✅ 完成シフト確認</h2>
+    <div id="debugInfo">認証中...</div>
+    <div id="scheduleList"><p class="empty">読み込み中...</p></div>
+  </div>
+<script>
+  const GAS_URL = "https://script.google.com/macros/s/AKfycby6c4xLav3DwMR6baWFZ7CKm_j3TxmiNI-BqPlufzBTGPowikVYLBnn-Do4P9XXA0bv/exec";
+
+  window.onload = function() {
+    function tryInit(retry) {
+      if (typeof woff === 'undefined') {
+        if (retry > 10) {
+          document.getElementById('debugInfo').innerText = "取得失敗";
+          document.getElementById('scheduleList').innerHTML = "<p class='empty'>名前を取得できませんでした</p>";
+          return;
+        }
+        setTimeout(() => tryInit(retry + 1), 500);
+        return;
+      }
+      woff.init({ woffId: "SCHEDULE_WOFF_ID" })
+        .then(() => {
+          if (!woff.isLoggedIn()) { woff.login(); return Promise.reject("login"); }
+          return woff.getProfile();
+        })
+        .then(p => {
+          if (p) {
+            document.getElementById('debugInfo').innerText = "認証完了: " + p.displayName;
+            loadSchedule(p.displayName);
+          }
+        })
+        .catch(err => {
+          if (err === "login") return;
+          document.getElementById('scheduleList').innerHTML = "<p class='empty'>取得できませんでした</p>";
+        });
+    }
+    tryInit(0);
+  };
+
+  function loadSchedule(name) {
+    const params = new URLSearchParams({ action: "schedule", staffName: name });
+    fetch(GAS_URL + "?" + params.toString(), { method: "GET" })
+      .then(r => r.json())
+      .then(schedule => {
+        const listDiv = document.getElementById('scheduleList');
+        if (!schedule || schedule.length === 0) {
+          listDiv.innerHTML = "<p class='empty'>確定シフトはまだありません</p>";
+          return;
+        }
+        let html = "";
+        schedule.forEach(item => {
+          html += `<div class="shift-item"><span>${item.date}</span><span>${item.time}</span></div>`;
+        });
+        listDiv.innerHTML = html;
+      })
+      .catch(() => {
+        document.getElementById('scheduleList').innerHTML = "<p class='empty'>取得に失敗しました</p>";
+      });
+  }
+</script>
+</body>
+</html>
